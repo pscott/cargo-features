@@ -273,7 +273,6 @@ impl Package {
 
     // todo pretty print
     pub fn display_hidden_features(&self) {
-        println!("hidden");
         for cargo in self.0.values() {
             if !cargo.hidden_features.is_empty() {
                 println!("path: {:?}", cargo.path);
@@ -290,7 +289,6 @@ impl Package {
 
     // todo pretty print
     pub fn display_exposed_features(&self) {
-        println!("exposed");
         for cargo in self.0.values() {
             if !cargo.exposed_features.is_empty() {
                 println!("path: {:?}", cargo.path);
@@ -303,7 +301,6 @@ impl Package {
 
     // todo pretty print
     pub fn display_used_features(&self) {
-        println!("used");
         for cargo in self.0.values() {
             if !cargo.used_features.is_empty() {
                 println!("path: {:?}", cargo.path);
