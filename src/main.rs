@@ -1,302 +1,46 @@
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::cmp::{Eq, PartialEq};
-use std::collections::{HashMap, HashSet};
-use std::fs::read_to_string;
-use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
+mod package;
+use package::Package;
+use structopt::StructOpt;
 
-// gh issues
-// test: spaces, file that contains feature but is not rs
-// add color to cmd+click?
-#[cfg(any(feature = "test-helper", feature = "test-helpers"))]
-pub enum Hi {
-    Salut,
-    Bonjour,
-}
-
-fn extract_features(input: &str) -> Option<Vec<&str>> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r#"feature\s*=\s*"(?P<feature>((\w*)-*)*)""#).unwrap();
-    }
-    let mut res = Vec::new();
-    for s in RE.find_iter(input) {
-        res.push(s.as_str())
-    }
-    Some(res)
-}
-
-#[cfg(any(feature = "test-helper", feature = "test-helpers"))]
-enum Toto {
-    Tata,
-}
-
-#[derive(Debug, Clone)]
-enum Feature {
-    UsedFeature {
-        name: String,
-        path: PathBuf,
-        line_number: u64,
-    },
-    ExposedFeature {
-        name: String,
-    },
-}
-
-impl Hash for Feature {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name().hash(state);
+fn true_or_false(s: &str) -> Result<bool, &'static str> {
+    match s {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err("expected `true` or `false`"),
     }
 }
 
-impl PartialEq for Feature {
-    fn eq(&self, other: &Self) -> bool {
-        self.name() == other.name()
-    }
-}
-
-impl Eq for Feature {}
-
-impl Feature {
-    fn path(&self) -> Option<&Path> {
-        match self {
-            Self::UsedFeature { path, .. } => Some(path),
-            Self::ExposedFeature { .. } => None,
-        }
-    }
-
-    fn clickable_path(&self) -> Option<String> {
-        match self {
-            Self::UsedFeature {
-                path, line_number, ..
-            } => {
-                let path_str = path.to_str().expect("toto SCOTT");
-                let ln = line_number.to_string();
-                let clickable_path = format!("{}:{}", path_str, ln);
-                Some(clickable_path)
-            }
-            Self::ExposedFeature { .. } => None,
-        }
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            Self::UsedFeature { name, .. } => name,
-            Self::ExposedFeature { name } => name,
-        }
-    }
-}
-
-fn cfg_features(json: serde_json::Value) -> Result<Vec<Feature>, &'static str> {
-    let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
-    let features = match extract_features(&line) {
-        Some(text) => text,
-        None => return Err("get_rekt"),
-    };
-    let mut res = Vec::new();
-    for feature_name in features {
-        let line_number = json["data"]["line_number"]
-            .as_u64()
-            .expect("couldn't convert"); // error
-        let path = Path::new(json["data"]["path"]["text"].as_str().unwrap()); // error
-        res.push(Feature::UsedFeature {
-            name: feature_name.to_string(),
-            path: path.to_path_buf(),
-            line_number,
-        })
-    }
-    Ok(res)
-}
-
-#[derive(Debug)]
-struct CrateInfo {
+#[derive(StructOpt, Debug)]
+struct Opt {
+    #[structopt(parse(from_os_str), default_value = ".")]
     path: PathBuf,
-    // Set of all exposed features (represented as Strings).
-    exposed_features: HashSet<Feature>,
-    // Set of all used features, represented as Strings.
-    used_features: HashSet<Feature>,
-    // Set that represents the difference between the used features and the exposed features.
-    hidden_features: HashSet<Feature>,
+
+    #[structopt(short, long, parse(try_from_str = true_or_false), default_value = "true")]
+    hidden_features: bool,
+
+    #[structopt(short, long)]
+    exposed_features: bool,
+
+    #[structopt(short, long)]
+    used_features: bool,
 }
 
-impl CrateInfo {
-    fn new(path: &Path) -> Self {
-        let path = path.to_path_buf();
-        let exposed_features = HashSet::new();
-        let used_features = HashSet::new();
-        let hidden_features = HashSet::new();
-        Self {
-            path,
-            exposed_features,
-            used_features,
-            hidden_features,
-        }
+fn main() -> Result<(), String> {
+    let opt = Opt::from_args();
+
+    let mut package = Package::new();
+    package.find_used_features(&opt.path)?;
+    package.find_exposed_features();
+    package.find_hidden_features();
+    if opt.hidden_features {
+        package.display_hidden_features();
     }
-
-    fn add_used_features(&mut self, new_features: &HashSet<Feature>) {
-        println!("adding: {:?}", new_features);
-        self.used_features = self.used_features.union(new_features).cloned().collect();
+    if opt.exposed_features {
+        package.display_exposed_features();
     }
-}
-
-fn run_rg_command(path: &Path) -> Vec<u8> {
-    let output = Command::new("rg")
-        // need to account for other feature = .. maybe regex?
-        // need to account for multiline
-        .args(&[
-            // json output
-            "--json",
-            // use a regex expression to specify what we wish to capture
-            "-e",
-            r"feature\s*=",
-            // only search for rust files
-            "-trust",
-            path.to_str().expect("SCOTT"),
-        ]) // err
-        .output()
-        .expect("SCOTT"); // err
-
-    output.stdout
-}
-
-/// A mapping of Paths to Crates. Used to iterate over every crate in the directory.
-#[derive(Debug)]
-struct Crates(HashMap<PathBuf, CrateInfo>);
-
-impl Crates {
-    fn new() -> Self {
-        Self(HashMap::new())
+    if opt.used_features {
+        package.display_used_features();
     }
-    /// Find the Cargo.toml file associated to a path.
-    fn find_associated_cargo(&self, mut path: &Path) -> Option<PathBuf> {
-        loop {
-            // Create a potential candidate by appending Cargo.toml
-            let candidate = path.join("Cargo.toml");
-            // Check whether this file exists.
-            if self.0.contains_key(&candidate) || candidate.exists() {
-                // It exists, so we've found the Cargo.toml that corresponds to the initial path.
-                return Some(candidate);
-            } else {
-                // Bad candidate: loop back, this time using the parent directory as path.
-                path = path.parent()?;
-            }
-        }
-    }
-
-    /// Finds the used features by ripgrep'ing the path, looking for occurences of cfg(feature)
-    /// and groups those occurences by crates.
-    fn find_used_features(&mut self, path: &Path) {
-        // Run the command and capture its output.
-        let output = run_rg_command(path);
-
-        let cow = String::from_utf8_lossy(&output);
-        // Output is a bunch of json separated by \n, so we split them to iterate over them.
-        let jsons = cow.split('\n');
-
-        for line in jsons {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                // Keep only the "match" jsons.
-                if json["type"] == "match" {
-                    // use get?
-                    let cfg = cfg_features(json);
-                    match cfg {
-                        Ok(v) => {
-                            for feature in v {
-                                self.add_feature(feature)
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                }
-            }
-        }
-    }
-
-    // scott rename
-    /// Adds the feature to the mapping from paths to crates.
-    fn add_feature(&mut self, feature: Feature) {
-        let path = feature.path().expect("SCOTT");
-        // The path to the parent directory
-        let parent = path.parent().expect("failed to find cargo file");
-        // Create a Cargo.toml path candidate: a Cargo file that would be in the same directory as the .rs file we just matched.
-        let cargo_path = self.find_associated_cargo(&parent).expect("SCOTT");
-
-        if !self.0.contains_key(&cargo_path) {
-            let mut used_features_set = HashSet::new();
-            // Populate the set with the list of used features.
-            used_features_set.insert(feature);
-
-            // Create a cargo entry, filled with the used vec.
-            let mut cargo = CrateInfo::new(&cargo_path);
-            cargo.add_used_features(&used_features_set);
-            // Insert the Cargo entry in the path mapping.
-            let _ = self.0.insert(cargo_path, cargo);
-        } else {
-            let toto = self.0.get_mut(&cargo_path).unwrap();
-            println!("{:?}", toto.used_features.insert(feature));
-        }
-    }
-
-    fn find_exposed_features(&mut self) {
-        // Iterate over every Cargo
-        for v in self.0.values_mut() {
-            // Load its content in a String
-            let s = read_to_string(&v.path).expect("first");
-            // Parse the Cargo into a TOML structure
-            let toml = s.parse::<toml::Value>().unwrap();
-            let table = match &toml.get("features") {
-                Some(toml::Value::Table(table)) => Some(table),
-                _ => None,
-            };
-            let mut exposed = HashSet::new();
-            if let Some(table) = table {
-                for (feature_name, _) in table.iter() {
-                    exposed.insert(Feature::ExposedFeature {
-                        name: feature_name.to_string(),
-                    });
-                }
-            }
-            v.exposed_features = exposed;
-        }
-    }
-
-    fn find_hidden_features(&mut self) {
-        for v in self.0.values_mut() {
-            let diff = v.used_features.difference(&v.exposed_features);
-            let mut h = HashSet::new();
-            // no need to clone those
-            for v in diff {
-                h.insert(v.clone());
-            }
-            v.hidden_features = h;
-        }
-    }
-
-    fn display_hidden_features(&self) {
-        println!("hidden");
-        for cargo in self.0.values() {
-            if !cargo.hidden_features.is_empty() {
-                println!("path: {:?}", cargo.path);
-            }
-            for feature in cargo.hidden_features.iter() {
-                println!(
-                    "\t{}\t{}",
-                    feature.name(),
-                    feature.clickable_path().expect("should have path SCOTT")
-                );
-            }
-        }
-    }
-}
-
-fn main() {
-    // should come from cli
-    let path = Path::new(".");
-
-    let mut crates_map = Crates::new();
-    crates_map.find_used_features(path);
-    crates_map.find_exposed_features();
-    crates_map.find_hidden_features();
-    crates_map.display_hidden_features();
+    Ok(())
 }
