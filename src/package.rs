@@ -9,13 +9,17 @@ use std::process::Command;
 
 fn extract_features(input: &str) -> Option<Vec<&str>> {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r#"feature\s*=\s*"(?P<feature>((\w*)-*)*)""#).unwrap();
+        static ref RE: Regex =
+            Regex::new(r#"feature\s*=\s*"(?P<feature>((\w*)-*)*)""#).expect("Invalid regex");
     }
-    let mut res = Vec::new();
-    for s in RE.find_iter(input) {
-        res.push(s.as_str())
-    }
-    Some(res)
+    Some(
+        RE.captures_iter(input)
+            .map(|c| match c.name("feature") {
+                Some(val) => val.as_str(),
+                None => unreachable!("SCOTT"),
+            })
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +82,7 @@ fn cfg_features(json: serde_json::Value) -> Result<Vec<Feature>, &'static str> {
     let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
     let features = match extract_features(&line) {
         Some(text) => text,
-        None => return Err("get_rekt"),
+        None => return Err("SCOTT"),
     };
     let mut res = Vec::new();
     for feature_name in features {
@@ -185,7 +189,11 @@ impl Package {
         for line in jsons {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
                 // Keep only the "match" jsons.
-                if json["type"] == "match" {
+                if json
+                    .get("type")
+                    .expect("JSON object should have a type field")
+                    == "match"
+                {
                     // use get?
                     let cfg = cfg_features(json);
                     match cfg {
@@ -211,19 +219,19 @@ impl Package {
         // Create a Cargo.toml path candidate: a Cargo file that would be in the same directory as the .rs file we just matched.
         let cargo_path = self.find_associated_cargo(&parent).expect("SCOTT");
 
-        if !self.0.contains_key(&cargo_path) {
+        if let Some(crate_info) = self.0.get_mut(&cargo_path) {
+            // This crate is already in the map, so simply add the feature to the list of used features.
+            crate_info.used_features.insert(feature);
+        } else {
             let mut used_features_set = HashSet::new();
             // Populate the set with the list of used features.
             used_features_set.insert(feature);
 
             // Create a cargo entry, filled with the used vec.
-            let mut cargo = CrateInfo::new(&cargo_path);
-            cargo.add_used_features(&used_features_set);
+            let mut crate_info = CrateInfo::new(&cargo_path);
+            crate_info.add_used_features(&used_features_set);
             // Insert the Cargo entry in the path mapping.
-            let _ = self.0.insert(cargo_path, cargo);
-        } else {
-            let toto = self.0.get_mut(&cargo_path).unwrap(); // toto SCOTT
-            toto.used_features.insert(feature);
+            self.0.insert(cargo_path, crate_info);
         }
     }
 
@@ -251,12 +259,17 @@ impl Package {
     }
 
     pub fn find_hidden_features(&mut self) {
+        // Iterate over the package's crates.
         for crate_ in self.0.values_mut() {
+            // Find the difference between the used features and the exposed ones for a particular crate.
             let diff = crate_.used_features.difference(&crate_.exposed_features);
+
+            // Add them to a set.
             let mut h = HashSet::new();
             for feature in diff {
                 h.insert(feature.clone());
             }
+            // Move the set to the hidden_features field.
             crate_.hidden_features = h;
         }
     }
@@ -286,10 +299,7 @@ impl Package {
                 println!("path: {:?}", cargo.path);
             }
             for feature in cargo.exposed_features.iter() {
-                println!(
-                    "\t{}",
-                    feature.name(),
-                );
+                println!("\t{}", feature.name());
             }
         }
     }
