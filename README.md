@@ -1,3 +1,6 @@
+# DISCLAIMER
+This is WIP. Code is shitty. Don't judge.
+
 # cargo-features
 ## Install
 TODO
