@@ -251,14 +251,13 @@ impl Package {
     }
 
     pub fn find_hidden_features(&mut self) {
-        for v in self.0.values_mut() {
-            let diff = v.used_features.difference(&v.exposed_features);
+        for crate_ in self.0.values_mut() {
+            let diff = crate_.used_features.difference(&crate_.exposed_features);
             let mut h = HashSet::new();
-            // no need to clone those
-            for v in diff {
-                h.insert(v.clone());
+            for feature in diff {
+                h.insert(feature.clone());
             }
-            v.hidden_features = h;
+            crate_.hidden_features = h;
         }
     }
 
