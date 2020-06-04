@@ -7,15 +7,6 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-// gh issues
-// test: spaces, file that contains feature but is not rs
-// add color to cmd+click?
-#[cfg(any(feature = "test-helper", feature = "test-helpers"))]
-pub enum Hi {
-    Salut,
-    Bonjour,
-}
-
 fn extract_features(input: &str) -> Option<Vec<&str>> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r#"feature\s*=\s*"(?P<feature>((\w*)-*)*)""#).unwrap();
@@ -25,11 +16,6 @@ fn extract_features(input: &str) -> Option<Vec<&str>> {
         res.push(s.as_str())
     }
     Some(res)
-}
-
-#[cfg(any(feature = "test-helper", feature = "test-helpers"))]
-enum Toto {
-    Tata,
 }
 
 #[derive(Debug, Clone)]
@@ -276,6 +262,7 @@ impl Package {
         }
     }
 
+    // todo pretty print
     pub fn display_hidden_features(&self) {
         println!("hidden");
         for cargo in self.0.values() {
@@ -292,6 +279,7 @@ impl Package {
         }
     }
 
+    // todo pretty print
     pub fn display_exposed_features(&self) {
         println!("exposed");
         for cargo in self.0.values() {
@@ -307,6 +295,7 @@ impl Package {
         }
     }
 
+    // todo pretty print
     pub fn display_used_features(&self) {
         println!("used");
         for cargo in self.0.values() {
