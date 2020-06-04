@@ -196,13 +196,10 @@ impl Package {
                 {
                     // use get?
                     let cfg = cfg_features(json);
-                    match cfg {
-                        Ok(v) => {
-                            for feature in v {
-                                self.add_feature(feature)
-                            }
+                    if let Ok(v) = cfg {
+                        for feature in v {
+                            self.add_feature(feature)
                         }
-                        Err(_) => {}
                     }
                 }
             }
