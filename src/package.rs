@@ -119,7 +119,7 @@ struct CrateInfo {
 }
 
 impl CrateInfo {
-    /// Creates a new CrateInfo object, given a Path to its Cargo.toml file.
+    /// Creates a new `CrateInfo` object, given a `Path` to its Cargo.toml file.
     fn new(path: &Path) -> Self {
         let path = path.to_path_buf();
         let exposed_features = HashSet::new();
@@ -157,7 +157,7 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
     }
 }
 
-/// A mapping from Paths to Crates. Only crates which USE features in their code will be added.
+/// A mapping from `PathBuf` to `CrateInfo`. Only crates which USE features in their code will be added.
 #[derive(Debug)]
 pub struct Package(HashMap<PathBuf, CrateInfo>);
 
@@ -269,7 +269,6 @@ impl Package {
             crate_.hidden_features = crate_
                 .used_features
                 .difference(&crate_.exposed_features)
-                .into_iter()
                 .cloned()
                 .collect();
         }
