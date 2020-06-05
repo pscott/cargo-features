@@ -2,7 +2,7 @@
 #[test]
 fn my_failing_deny_test() {
     let n = 3;
-    for i in 0..n + 1 {
+    for i in 0..=n {
         println!("pls")
     }
 

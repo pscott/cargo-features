@@ -72,13 +72,12 @@ impl Feature {
 
     fn name(&self) -> &str {
         match self {
-            Self::UsedFeature { name, .. } => name,
-            Self::ExposedFeature { name } => name,
+            Self::UsedFeature { name, .. } | Self::ExposedFeature { name } => name
         }
     }
 }
 
-fn cfg_features(json: serde_json::Value) -> Result<Vec<Feature>, &'static str> {
+fn cfg_features(json: &serde_json::Value) -> Result<Vec<Feature>, &'static str> {
     let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
     let features = match extract_features(&line) {
         Some(text) => text,
@@ -195,7 +194,7 @@ impl Package {
                     == "match"
                 {
                     // use get?
-                    let cfg = cfg_features(json);
+                    let cfg = cfg_features(&json);
                     if let Ok(v) = cfg {
                         for feature in v {
                             self.add_feature(feature)
@@ -277,7 +276,7 @@ impl Package {
             if !cargo.hidden_features.is_empty() {
                 println!("path: {:?}", cargo.path);
             }
-            for feature in cargo.hidden_features.iter() {
+            for feature in &cargo.hidden_features {
                 println!(
                     "\t{}\t{}",
                     feature.name(),
@@ -293,7 +292,7 @@ impl Package {
             if !cargo.exposed_features.is_empty() {
                 println!("path: {:?}", cargo.path);
             }
-            for feature in cargo.exposed_features.iter() {
+            for feature in &cargo.exposed_features {
                 println!("\t{}", feature.name());
             }
         }
@@ -305,7 +304,7 @@ impl Package {
             if !cargo.used_features.is_empty() {
                 println!("path: {:?}", cargo.path);
             }
-            for feature in cargo.used_features.iter() {
+            for feature in &cargo.used_features {
                 println!(
                     "\t{}\t{}",
                     feature.name(),
