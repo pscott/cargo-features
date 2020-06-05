@@ -9,3 +9,4 @@ fn my_failing_deny_test() {
 
     assert!(2 == 3);
 }
+
