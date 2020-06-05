@@ -268,7 +268,7 @@ impl Package {
             // Find the difference between the used features and the exposed ones, and collects it into a set.
             crate_info.hidden_features = crate_info
                 .used_features
-                .difference(&crate_.exposed_features)
+                .difference(&crate_info.exposed_features)
                 .cloned()
                 .collect();
         }
