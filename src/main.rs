@@ -4,6 +4,7 @@ use package::Package;
 use structopt::StructOpt;
 mod tests;
 
+/// Helper function to parse a boolean from a &str. Used when parsing the args from the command line.
 fn true_or_false(s: &str) -> Result<bool, &'static str> {
     match s {
         "true" => Ok(true),
@@ -12,6 +13,7 @@ fn true_or_false(s: &str) -> Result<bool, &'static str> {
     }
 }
 
+/// Struct that contains a number of options used during execution.
 #[derive(StructOpt, Debug)]
 struct Opt {
     #[structopt(parse(from_os_str), default_value = ".")]
