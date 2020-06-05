@@ -2,6 +2,7 @@ use std::path::PathBuf;
 mod package;
 use package::Package;
 use structopt::StructOpt;
+mod tests;
 
 fn true_or_false(s: &str) -> Result<bool, &'static str> {
     match s {
