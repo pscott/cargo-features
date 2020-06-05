@@ -264,9 +264,9 @@ impl Package {
     /// Finds the hidden features, i.e. features that are used in the code but not exposed in their corresponding Cargo.toml file.
     pub fn find_hidden_features(&mut self) {
         // Iterate over the package's crates.
-        for crate_ in self.0.values_mut() {
+        for crate_info in self.0.values_mut() {
             // Find the difference between the used features and the exposed ones, and collects it into a set.
-            crate_.hidden_features = crate_
+            crate_info.hidden_features = crate_info
                 .used_features
                 .difference(&crate_.exposed_features)
                 .cloned()
