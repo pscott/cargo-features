@@ -72,7 +72,7 @@ impl Feature {
 
     fn name(&self) -> &str {
         match self {
-            Self::UsedFeature { name, .. } | Self::ExposedFeature { name } => name
+            Self::UsedFeature { name, .. } | Self::ExposedFeature { name } => name,
         }
     }
 }
