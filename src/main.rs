@@ -27,18 +27,9 @@ struct Opt {
     used_features: bool,
 }
 
-struct Foo {
-    a: Box<Vec<String>>,
-}
-
 fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
-    let mut v = Vec::new();
-    v.push(String::from("a"));
-
-    let f = Foo { a: Box::new(v) };
-    println!("{:?}", f.a);
     let mut package = Package::new();
     package.find_used_features(&opt.path)?;
     package.find_exposed_features();
