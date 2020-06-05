@@ -1,5 +1,4 @@
 #[cfg(test)]
-
 #[test]
 fn my_failing_deny_test() {
     let n = 3;
@@ -9,4 +8,3 @@ fn my_failing_deny_test() {
 
     assert!(2 == 3);
 }
-

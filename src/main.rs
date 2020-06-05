@@ -37,7 +37,7 @@ fn main() -> Result<(), String> {
     let mut v = Vec::new();
     v.push(String::from("a"));
 
-    let f = Foo { a: Box::new(v)};
+    let f = Foo { a: Box::new(v) };
     println!("{:?}", f.a);
     let mut package = Package::new();
     package.find_used_features(&opt.path)?;
