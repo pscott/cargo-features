@@ -19,7 +19,7 @@ fn extract_features(input: &str) -> Vec<&str> {
         // For each match, extract the "feature" group which we just captured.
         .map(|c| match c.name("feature") {
             Some(val) => val.as_str(),
-            None => unreachable!("SCOTT"),
+            None => unreachable!(), // capture has "feature" in it, so this can't be reached.
         })
         .collect()
 }
@@ -127,10 +127,11 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
             "-e",           // Specify that we wish to use a regex.
             r"feature\s*=", // The actual regex.
             "-trust",       // Specify we only wish to look for rust files.
-            path.to_str().expect("SCOTT"),
-        ]) // err
+            path.to_str()
+                .ok_or_else(|| "Path contains non utf-8 characters")?,
+        ])
         .output()
-        .expect("SCOTT"); // err
+        .map_err(|e| e.to_string())?;
     if output.status.success() {
         Ok(output.stdout)
     } else {
@@ -190,16 +191,15 @@ impl Package {
                 // Keep only the "match" jsons.
                 if json
                     .get("type")
-                    .expect("JSON object should have a type field")
+                    .ok_or_else(|| "JSON object should have a type field".to_string())?
                     == "match"
                 {
-                    // use get?
-                    let cfg_features = self.cfg_features(&json);
-                    if let Ok(features) = cfg_features {
-                        for feature in features {
-                            if !self.excluded_features.contains(feature.name()) {
-                                self.add_feature(feature)
-                            }
+                    // Find the features that are in the "#[cfg(...)]" declaration
+                    let features = self.cfg_features(&json)?;
+                    for feature in features {
+                        // Make sure the feature does not appear amongst the excluded_features.
+                        if !self.excluded_features.contains(feature.name()) {
+                            self.add_feature(feature)?
                         }
                     }
                 }
@@ -209,12 +209,16 @@ impl Package {
     }
 
     /// Adds the feature to the mapping from paths to crates.
-    pub fn add_feature(&mut self, feature: Feature) {
-        let path = feature.path().expect("SCOTT");
+    pub fn add_feature(&mut self, feature: Feature) -> Result<(), String> {
+        let path = feature
+            .path()
+            .ok_or_else(|| "internal error: should have a path")?;
         // The path to the parent directory
-        let parent = path.parent().expect("failed to find cargo file");
+        let parent = path.parent().ok_or_else(|| "path has no parent")?;
         // Create a Cargo.toml path candidate: a Cargo file that would be in the same directory as the .rs file we just matched.
-        let cargo_path = self.find_associated_cargo(&parent).expect("SCOTT");
+        let cargo_path = self
+            .find_associated_cargo(&parent)
+            .ok_or_else(|| "could not find corresponding Cargo file")?;
 
         if let Some(crate_info) = self.mapping.get_mut(&cargo_path) {
             // This crate is already in the map, so simply add the feature to the list of used features.
@@ -230,38 +234,52 @@ impl Package {
             // Insert the Cargo entry in the path mapping.
             self.mapping.insert(cargo_path, crate_info);
         }
+        Ok(())
     }
 
-    /// Extracts the features from a json object.
+    /// Extracts the features from a JSON object.
     fn cfg_features(&self, json: &serde_json::Value) -> Result<Vec<Feature>, &'static str> {
-        let path = Path::new(json["data"]["path"]["text"].as_str().unwrap()).to_path_buf();
-        let path_str = path.to_str().expect("scott");
+        let path_str = json["data"]["path"]["text"]
+            .as_str()
+            .ok_or_else(|| "Value should be a string")?;
+        // Make sure that the path does not appear amongst the excluded paths.
         if self.excluded_paths.iter().any(|s| path_str.contains(s)) {
             return Ok(Vec::new());
         }
-        let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
+
+        let path = PathBuf::from(path_str);
+
+        // Extract the line number.
         let line_number = json["data"]["line_number"]
             .as_u64()
-            .expect("couldn't convert"); // error
-        let feature_names = extract_features(&line);
-        let mut features = Vec::new();
-        for feature_name in feature_names {
-            features.push(Feature::UsedFeature {
+            .ok_or_else(|| "error converting the line number")?;
+
+        // Extract the line in the code that contains the features (probably a #[cfg(...)]).
+        let cfg_declaration = json["data"]["lines"]["text"]
+            .as_str()
+            .ok_or_else(|| "Value should be a string")?;
+
+        // Get a Vector with the names of the different features declared in this line.
+        let feature_names = extract_features(cfg_declaration);
+
+        // From the vecotr of feature names, create a vector of `Feature::UsedFeature`s.
+        Ok(feature_names
+            .iter()
+            .map(|&feature_name| Feature::UsedFeature {
                 name: feature_name.to_string(),
                 path: path.clone(),
                 line_number,
             })
-        }
-        Ok(features)
+            .collect())
     }
 
     /// Finds the exposed features of every Cargo.toml file in the mapping.
     pub fn find_exposed_features(&mut self) {
         // Iterate over every Cargo.
         for v in self.mapping.values_mut() {
-            // Load its content in a String.
-            let s = read_to_string(&v.path).expect("first");
-            // Parse the Cargo into a TOML structure.
+            // Load its content in a String. Using unwrap because we want our program to stop in case of an error.
+            let s = read_to_string(&v.path).unwrap();
+            // Parse the Cargo into a TOML structure. Using unwrap because we want our program to stop in case of an error.
             let toml = s.parse::<toml::Value>().unwrap();
             let table = match &toml.get("features") {
                 Some(toml::Value::Table(table)) => Some(table),
@@ -271,6 +289,7 @@ impl Package {
             if let Some(table) = table {
                 for (feature_name, _) in table.iter() {
                     let name = feature_name.to_string();
+                    // Make sure the feature is not one of the excluded features.
                     if !self.excluded_features.contains(&name) {
                         exposed.insert(Feature::ExposedFeature { name });
                     };
@@ -305,7 +324,9 @@ impl Package {
                 println!(
                     "\t{}\t{}",
                     feature.name(),
-                    feature.clickable_path().expect("should have path SCOTT")
+                    feature
+                        .clickable_path()
+                        .unwrap_or_else(|| String::from(feature.name()))
                 );
             }
         }
@@ -338,7 +359,9 @@ impl Package {
                 println!(
                     "\t{}\t{}",
                     feature.name(),
-                    feature.clickable_path().expect("should have path SCOTT")
+                    feature
+                        .clickable_path()
+                        .unwrap_or_else(|| String::from(feature.name()))
                 );
             }
         }
