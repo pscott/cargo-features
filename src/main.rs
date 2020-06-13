@@ -1,4 +1,6 @@
-use hidden_features::package::Package;
+mod package;
+
+use package::Package;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
