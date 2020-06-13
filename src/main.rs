@@ -31,7 +31,7 @@ fn main() -> Result<(), String> {
         .excluded_paths
         .iter()
         .cloned()
-        .map(|path| PathBuf::from(path))
+        .map(|path| PathBuf::from)
         .collect();
 
     let excluded_features = opt.excluded_features.iter().cloned().collect();
