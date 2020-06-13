@@ -366,4 +366,11 @@ impl Package {
             }
         }
     }
+
+    pub fn find_and_check(&mut self, path: &Path) -> Result<(), String> {
+        self.find_used_features(path)?;
+        self.find_exposed_features();
+        self.find_hidden_features();
+        self.check_hidden_features()
+    }
 }
