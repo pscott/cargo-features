@@ -40,7 +40,7 @@ pub enum Feature {
     },
 }
 
-// We implement Hash for Feature because we want to objects to be identical if they share the same name.
+// We implement Hash for Feature because we want two objects to be identical if they share the same name.
 // This avoids having tons of different lines written out if they all share the same feature in the same crate.
 impl Hash for Feature {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -84,25 +84,6 @@ impl Feature {
             Self::UsedFeature { name, .. } | Self::ExposedFeature { name } => name,
         }
     }
-}
-
-/// Extracts the features from a json object.
-fn cfg_features(json: &serde_json::Value) -> Result<Vec<Feature>, &'static str> {
-    let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
-    let feature_names = extract_features(&line);
-    let mut features = Vec::new();
-    for feature_name in feature_names {
-        let line_number = json["data"]["line_number"]
-            .as_u64()
-            .expect("couldn't convert"); // error
-        let path = Path::new(json["data"]["path"]["text"].as_str().unwrap()); // error
-        features.push(Feature::UsedFeature {
-            name: feature_name.to_string(),
-            path: path.to_path_buf(),
-            line_number,
-        })
-    }
-    Ok(features)
 }
 
 /// A representation of a Crate.
@@ -159,11 +140,23 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
 
 /// A mapping from `PathBuf` to `CrateInfo`. Only crates which USE features in their code will be added.
 #[derive(Debug)]
-pub struct Package(HashMap<PathBuf, CrateInfo>);
+pub struct Package {
+    mapping: HashMap<PathBuf, CrateInfo>,
+
+    // Set of paths that are excluded. A String is used to be able to use .contains() rather than iterating through the ancestors.
+    excluded_paths: HashSet<String>,
+
+    // Set of features to be excluded.
+    excluded_features: HashSet<String>,
+}
 
 impl Package {
-    pub fn new() -> Self {
-        Self(HashMap::new())
+    pub fn new(excluded_paths: HashSet<String>, excluded_features: HashSet<String>) -> Self {
+        Self {
+            mapping: HashMap::new(),
+            excluded_paths,
+            excluded_features,
+        }
     }
 
     /// Finds the Cargo.toml file associated to a path.
@@ -172,7 +165,7 @@ impl Package {
             // Create a potential candidate by appending Cargo.toml
             let candidate = path.join("Cargo.toml");
             // Check whether this file exists.
-            if self.0.contains_key(&candidate) || candidate.exists() {
+            if self.mapping.contains_key(&candidate) || candidate.exists() {
                 // It exists, so we've found the Cargo.toml that corresponds to the initial path.
                 return Some(candidate);
             } else {
@@ -201,10 +194,12 @@ impl Package {
                     == "match"
                 {
                     // use get?
-                    let cfg = cfg_features(&json);
-                    if let Ok(v) = cfg {
-                        for feature in v {
-                            self.add_feature(feature)
+                    let cfg_features = self.cfg_features(&json);
+                    if let Ok(features) = cfg_features {
+                        for feature in features {
+                            if !self.excluded_features.contains(feature.name()) {
+                                self.add_feature(feature)
+                            }
                         }
                     }
                 }
@@ -221,7 +216,7 @@ impl Package {
         // Create a Cargo.toml path candidate: a Cargo file that would be in the same directory as the .rs file we just matched.
         let cargo_path = self.find_associated_cargo(&parent).expect("SCOTT");
 
-        if let Some(crate_info) = self.0.get_mut(&cargo_path) {
+        if let Some(crate_info) = self.mapping.get_mut(&cargo_path) {
             // This crate is already in the map, so simply add the feature to the list of used features.
             crate_info.used_features.insert(feature);
         } else {
@@ -233,14 +228,37 @@ impl Package {
             let mut crate_info = CrateInfo::new(&cargo_path);
             crate_info.add_used_features(&used_features_set);
             // Insert the Cargo entry in the path mapping.
-            self.0.insert(cargo_path, crate_info);
+            self.mapping.insert(cargo_path, crate_info);
         }
+    }
+
+    /// Extracts the features from a json object.
+    fn cfg_features(&self, json: &serde_json::Value) -> Result<Vec<Feature>, &'static str> {
+        let path = Path::new(json["data"]["path"]["text"].as_str().unwrap()).to_path_buf();
+        let path_str = path.to_str().expect("scott");
+        if self.excluded_paths.iter().any(|s| path_str.contains(s)) {
+            return Ok(Vec::new());
+        }
+        let line = String::from(json["data"]["lines"]["text"].as_str().expect("SCOTT")); // error
+        let line_number = json["data"]["line_number"]
+            .as_u64()
+            .expect("couldn't convert"); // error
+        let feature_names = extract_features(&line);
+        let mut features = Vec::new();
+        for feature_name in feature_names {
+            features.push(Feature::UsedFeature {
+                name: feature_name.to_string(),
+                path: path.clone(),
+                line_number,
+            })
+        }
+        Ok(features)
     }
 
     /// Finds the exposed features of every Cargo.toml file in the mapping.
     pub fn find_exposed_features(&mut self) {
         // Iterate over every Cargo.
-        for v in self.0.values_mut() {
+        for v in self.mapping.values_mut() {
             // Load its content in a String.
             let s = read_to_string(&v.path).expect("first");
             // Parse the Cargo into a TOML structure.
@@ -252,9 +270,10 @@ impl Package {
             let mut exposed = HashSet::new();
             if let Some(table) = table {
                 for (feature_name, _) in table.iter() {
-                    exposed.insert(Feature::ExposedFeature {
-                        name: feature_name.to_string(),
-                    });
+                    let name = feature_name.to_string();
+                    if !self.excluded_features.contains(&name) {
+                        exposed.insert(Feature::ExposedFeature { name });
+                    };
                 }
             }
             v.exposed_features = exposed;
@@ -264,7 +283,7 @@ impl Package {
     /// Finds the hidden features, i.e. features that are used in the code but not exposed in their corresponding Cargo.toml file.
     pub fn find_hidden_features(&mut self) {
         // Iterate over the package's crates.
-        for crate_info in self.0.values_mut() {
+        for crate_info in self.mapping.values_mut() {
             // Find the difference between the used features and the exposed ones, and collects it into a set.
             crate_info.hidden_features = crate_info
                 .used_features
@@ -275,9 +294,11 @@ impl Package {
     }
 
     // todo pretty print
-    pub fn display_hidden_features(&self) {
-        for cargo in self.0.values() {
+    pub fn check_hidden_features(&self) -> Result<(), String> {
+        let mut empty = true;
+        for cargo in self.mapping.values() {
             if !cargo.hidden_features.is_empty() {
+                empty = false;
                 println!("path: {:?}", cargo.path);
             }
             for feature in &cargo.hidden_features {
@@ -288,11 +309,16 @@ impl Package {
                 );
             }
         }
+        if empty {
+            Ok(())
+        } else {
+            Err("Hidden features detected.".to_string())
+        }
     }
 
     // todo pretty print
     pub fn display_exposed_features(&self) {
-        for cargo in self.0.values() {
+        for cargo in self.mapping.values() {
             if !cargo.exposed_features.is_empty() {
                 println!("path: {:?}", cargo.path);
             }
@@ -304,7 +330,7 @@ impl Package {
 
     // todo pretty print
     pub fn display_used_features(&self) {
-        for cargo in self.0.values() {
+        for cargo in self.mapping.values() {
             if !cargo.used_features.is_empty() {
                 println!("path: {:?}", cargo.path);
             }
