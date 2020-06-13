@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     // we do not define a TEST_DIR because concat! does not work with consts...
-    const NO_FEATURES_FILE: &str = "test_files/no_features.rs";
+    // const NO_FEATURES_FILE: &str = "test_files/no_features.rs";
     const ONE_FEATURE_FILE: &str = "test_files/one_feature.rs";
-    const FEATURE_NAME: &str = "hidden-feature";
+    // const FEATURE_NAME: &str = "hidden-feature";
     use crate::package::Package;
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
