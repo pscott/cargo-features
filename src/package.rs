@@ -150,15 +150,15 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
 pub struct Package {
     mapping: HashMap<PathBuf, CrateInfo>,
 
-    // Set of paths that are excluded. A String is used to be able to use .contains() rather than iterating through the ancestors.
-    excluded_paths: HashSet<String>,
+    // Set of paths that are excluded.
+    excluded_paths: HashSet<PathBuf>,
 
     // Set of features to be excluded.
     excluded_features: HashSet<String>,
 }
 
 impl Package {
-    pub fn new(excluded_paths: HashSet<String>, excluded_features: HashSet<String>) -> Self {
+    pub fn new(excluded_paths: HashSet<PathBuf>, excluded_features: HashSet<String>) -> Self {
         Self {
             mapping: HashMap::new(),
             excluded_paths,
@@ -248,12 +248,11 @@ impl Package {
         let path_str = json["data"]["path"]["text"]
             .as_str()
             .ok_or_else(|| "Value should be a string")?;
-        // Make sure that the path does not appear amongst the excluded paths.
-        if self.excluded_paths.iter().any(|s| path_str.contains(s)) {
-            return Ok(Vec::new());
-        }
-
         let path = PathBuf::from(path_str);
+        // Make sure that the path does not appear amongst the excluded paths.
+        if path.ancestors().any(|ancestor| self.excluded_paths.contains(ancestor)) {
+            return Ok(Vec::new())
+        }
 
         // Extract the line number.
         let line_number = json["data"]["line_number"]

@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn one_feature_but_path_excluded() {
         let mut excluded_paths = HashSet::new();
-        excluded_paths.insert(ONE_FEATURE_FILE.to_string());
+        excluded_paths.insert(PathBuf::from(ONE_FEATURE_FILE));
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);

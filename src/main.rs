@@ -27,8 +27,15 @@ struct Opt {
 fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
-    let excluded_paths = opt.excluded_paths.iter().cloned().collect();
+    let excluded_paths = opt
+        .excluded_paths
+        .iter()
+        .cloned()
+        .map(|path| PathBuf::from(path))
+        .collect();
+
     let excluded_features = opt.excluded_features.iter().cloned().collect();
+
     let mut package = Package::new(excluded_paths, excluded_features);
     package.find_used_features(&opt.path)?;
     package.find_exposed_features();
