@@ -135,7 +135,13 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
     if output.status.success() {
         Ok(output.stdout)
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        // Rg exits with a code != 0 if it finds no match. This means we have 0 hidden features, so we should return Ok.
+        if stderr.is_empty() {
+            Ok(output.stdout)
+        } else {
+            Err(stderr)
+        }
     }
 }
 

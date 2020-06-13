@@ -1,4 +1,5 @@
 mod package;
+mod test;
 
 use package::Package;
 use std::path::PathBuf;
