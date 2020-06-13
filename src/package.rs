@@ -250,8 +250,11 @@ impl Package {
             .ok_or_else(|| "Value should be a string")?;
         let path = PathBuf::from(path_str);
         // Make sure that the path does not appear amongst the excluded paths.
-        if path.ancestors().any(|ancestor| self.excluded_paths.contains(ancestor)) {
-            return Ok(Vec::new())
+        if path
+            .ancestors()
+            .any(|ancestor| self.excluded_paths.contains(ancestor))
+        {
+            return Ok(Vec::new());
         }
 
         // Extract the line number.
