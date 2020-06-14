@@ -33,11 +33,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Ensures the code builds.
-      run: cargo build --verbose
+      run: cargo build
   test:
     runs-on: ubuntu-latest
-    needs: clippy
+    needs: build
     steps:
     - uses: actions/checkout@v2
+    - name: install ripgrep
+      run: cargo install ripgrep
     - name: Ensures tests are all passing.
-      run: cargo test --all --verbose
+      run: cargo test --all

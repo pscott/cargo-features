@@ -25,13 +25,13 @@ mod tests {
         assert!(res.is_ok());
     }
 
+    #[test]
     fn no_features() {
         let excluded_paths = HashSet::new();
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(NO_FEATURES_FILE);
         let res = find_and_check(&mut p, &path);
-        dbg!(&res);
         assert!(res.is_ok());
     }
 
@@ -57,6 +57,7 @@ mod tests {
         assert!(res.is_err());
     }
 
+    #[test]
     fn one_feature_but_excluded() {
         let excluded_paths = HashSet::new();
         let mut excluded_features = HashSet::new();
@@ -68,6 +69,7 @@ mod tests {
         assert!(res.is_ok());
     }
 
+    #[test]
     fn one_feature_but_path_excluded() {
         let mut excluded_paths = HashSet::new();
         excluded_paths.insert(PathBuf::from(ONE_FEATURE_FILE));
