@@ -39,5 +39,7 @@ jobs:
     needs: clippy
     steps:
     - uses: actions/checkout@v2
+    - name: ls
+      run: ls
     - name: Ensures tests are all passing.
       run: cargo test --all --verbose
