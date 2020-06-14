@@ -126,7 +126,8 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
         String::from_utf8_lossy(&ls_here.stdout),
         String::from_utf8_lossy(&ls_here.stderr)
     );
-    let ls_files = Command::new("ls").arg(path).output().unwrap();
+    let ls_files = Command::new("ls").args(path).output().unwrap();
+    let path_str = path.to_str().ok_or_else(|| "Path contains non utf-8 characters")?;
     dbg!(
         String::from_utf8_lossy(&ls_files.stdout),
         String::from_utf8_lossy(&ls_files.stderr)
@@ -137,8 +138,7 @@ fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
             "-e",           // Specify that we wish to use a regex.
             r"feature\s*=", // The actual regex.
             "-trust",       // Specify we only wish to look for rust files.
-            path.to_str()
-                .ok_or_else(|| "Path contains non utf-8 characters")?,
+            path_str,
         ])
         .output()
         .map_err(|e| e.to_string())?;
