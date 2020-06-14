@@ -7,7 +7,6 @@ mod tests {
     use crate::package::Package;
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
-    use std::process::Command;
 
     fn find_and_check(package: &mut Package, path: &Path) -> Result<(), String> {
         package.find_used_features(path)?;
@@ -33,13 +32,7 @@ mod tests {
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(NO_FEATURES_FILE);
         let res = find_and_check(&mut p, &path);
-        dbg!(&res);
-        let ls = Command::new("ls").arg("test_files").output().unwrap();
-        dbg!(
-            String::from_utf8_lossy(&ls.stderr),
-            String::from_utf8_lossy(&ls.stdout)
-        );
-        panic!("STOP");
+        assert!(res.is_ok());
     }
 
     #[test]
