@@ -40,6 +40,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: ls
-      run: ls test_files
+      run: cat test_files/no_features.rs
     - name: Ensures tests are all passing.
       run: cargo test --all
