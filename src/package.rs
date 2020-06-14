@@ -121,6 +121,18 @@ impl CrateInfo {
 }
 
 fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
+    let ls_here = Command::new("ls").output().unwrap();
+    dbg!(
+        "{:?}, {:?}",
+        String::from_utf8_lossy(&ls_here.stdout),
+        String::from_utf8_lossy(&ls_here.stderr)
+    );
+    let ls_files = Command::new("ls").arg("test_files").output().unwrap();
+    dbg!(
+        "{:?}, {:?}",
+        String::from_utf8_lossy(&ls_files.stdout),
+        String::from_utf8_lossy(&ls_files.stderr)
+    );
     let output = Command::new("rg")
         .args(&[
             "--json",       // We want the output to be in JSON format.
