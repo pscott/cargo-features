@@ -34,7 +34,7 @@ mod tests {
         let path = PathBuf::from(NO_FEATURES_FILE);
         let res = find_and_check(&mut p, &path);
         dbg!(&res);
-        let ls = Command::new("ls").output().unwrap();
+        let ls = Command::new("ls").arg("test_files").output().unwrap();
         dbg!(
             String::from_utf8_lossy(&ls.stderr),
             String::from_utf8_lossy(&ls.stdout)
