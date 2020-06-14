@@ -35,8 +35,11 @@ mod tests {
         let res = find_and_check(&mut p, &path);
         dbg!(&res);
         let ls = Command::new("ls").output().unwrap();
-        dbg!("{:?}, {:?}", ls.stderr, ls.stdout);
-        assert!(res.is_ok());
+        dbg!(
+            String::from_utf8_lossy(&ls.stderr),
+            String::from_utf8_lossy(&ls.stdout)
+        );
+        panic!("STOP");
     }
 
     #[test]
