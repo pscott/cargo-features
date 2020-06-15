@@ -3,7 +3,8 @@ mod tests {
     // we do not define a TEST_DIR because concat! does not work with consts...
     const NO_FEATURES_FILE: &str = "test_files/no_features.rs";
     const ONE_FEATURE_FILE: &str = "test_files/one_feature.rs";
-    const FEATURE_NAME: &str = "hidden-feature";
+    const FOUR_FEATURES_FILE: &str = "test_files/four_features.rs";
+    const ONE_LINE_FEATURES_FILE: &str = "test_files/one_line_features.rs";
     use crate::package::Package;
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
@@ -32,6 +33,7 @@ mod tests {
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(NO_FEATURES_FILE);
         let res = find_and_check(&mut p, &path);
+        dbg!(&res);
         assert!(res.is_ok());
     }
 
@@ -53,6 +55,8 @@ mod tests {
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
         let res = find_and_check(&mut p, &path);
+        let features = p.hidden_features();
+        assert!(features.contains("hidden-feature"));
         dbg!(&res);
         assert!(res.is_err());
     }
@@ -61,10 +65,12 @@ mod tests {
     fn one_feature_but_excluded() {
         let excluded_paths = HashSet::new();
         let mut excluded_features = HashSet::new();
-        excluded_features.insert(String::from(FEATURE_NAME));
+        excluded_features.insert(String::from("hidden-feature"));
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
         let res = find_and_check(&mut p, &path);
+        let features = p.hidden_features();
+        assert!(features.is_empty());
         dbg!(&res);
         assert!(res.is_ok());
     }
@@ -77,7 +83,45 @@ mod tests {
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
         let res = find_and_check(&mut p, &path);
+        let features = p.hidden_features();
+        assert!(features.is_empty());
         dbg!(&res);
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn four_features() {
+        let excluded_paths = HashSet::new();
+        let excluded_features = HashSet::new();
+        let mut p = Package::new(excluded_paths, excluded_features);
+        let path = PathBuf::from(FOUR_FEATURES_FILE);
+        let res = find_and_check(&mut p, &path);
+        let mut features = p.hidden_features();
+        dbg!(&features);
+        assert!(features.remove("hidden-feature-1"));
+        assert!(features.remove("hidden-feature-2"));
+        assert!(features.remove("hidden-feature-3"));
+        assert!(features.remove("hidden-feature-4"));
+        assert!(features.is_empty());
+        dbg!(&res);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn one_line_features() {
+        let excluded_paths = HashSet::new();
+        let excluded_features = HashSet::new();
+        let mut p = Package::new(excluded_paths, excluded_features);
+        let path = PathBuf::from(ONE_LINE_FEATURES_FILE);
+        let res = find_and_check(&mut p, &path);
+        let mut features = p.hidden_features();
+        dbg!(&features);
+        assert!(features.remove("get-your"));
+        assert!(features.remove("shit-together"));
+        assert!(features.remove("get-it-all-together"));
+        assert!(features.remove("and-put-it-all-in-a-backpack"));
+        assert!(features.is_empty());
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

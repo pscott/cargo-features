@@ -376,4 +376,17 @@ impl Package {
             }
         }
     }
+
+    #[allow(dead_code)]
+    /// Returns a set of all the hidden features names.
+    /// Used for testing purposes.
+    pub fn hidden_features(&self) -> HashSet<&str> {
+        let mut res = HashSet::new();
+        for cargo in self.mapping.values() {
+            for feature in &cargo.used_features {
+                res.insert(feature.name());
+            }
+        }
+        res
+    }
 }
