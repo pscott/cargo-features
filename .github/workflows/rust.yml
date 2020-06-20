@@ -39,7 +39,5 @@ jobs:
     needs: build
     steps:
     - uses: actions/checkout@v2
-    - name: install ripgrep
-      run: cargo install ripgrep
     - name: Ensures tests are all passing.
       run: cargo test --all
