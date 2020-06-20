@@ -11,7 +11,7 @@ use walkdir::{DirEntry, WalkDir};
 
 /// Extracts the features from a given string and collects them into a Vector.
 /// e.g `"#[cfg(features = "foo", features= "bar")]"` -> `vec!["foo", "bar"]`
-fn extract_features(line: &str) -> Option<Vec<&str>> {
+fn extract_feature_names(line: &str) -> Option<Vec<&str>> {
     // Using lazy_static here to avoid having to compile this regex everytime.
     lazy_static! {
         static ref RE: Regex =
@@ -124,7 +124,7 @@ impl CrateInfo {
     }
 }
 
-/// scott
+/// Helper function to determine whether an entry is hidden (starts with '.').
 fn is_hidden(entry: &DirEntry) -> bool {
     if entry.depth() == 0 {
         return false;
@@ -178,28 +178,36 @@ impl Package {
         for entry in walker.filter_entry(|e| !is_hidden(e)) {
             let entry = entry.map_err(|e| e.to_string())?;
             let entry_path = entry.path();
+            // If the entry path figures amongst the list of excluded paths, then skip it.
             if self.excluded_paths.contains(entry_path) {
                 continue;
             }
             let is_rust_file = entry_path
                 .extension()
                 .map_or(false, |ext| ext.to_str().map_or(false, |s| s == "rs"));
+            // We only wish to parse .rs files!
             if is_rust_file {
                 let file = File::open(entry.path()).map_err(|e| e.to_string())?;
                 let lines = BufReader::new(file).lines();
-                let path = entry_path.to_path_buf();
+                let path_buf = entry_path.to_path_buf();
+                // Go through every line of the file.
                 for (line_number, line) in lines.enumerate() {
-                    let line = line.map_err(|e| e.to_string())?;
-                    let feature_names = extract_features(&line);
-                    if let Some(f) = feature_names {
-                        for feature_name in f {
-                            if !self.excluded_features.contains(feature_name) {
-                                let feature = Feature::UsedFeature {
-                                    name: feature_name.to_string(),
-                                    path: path.clone(),
-                                    line_number: line_number as u64,
-                                };
-                                self.add_feature(feature)?
+                    // Make sure the line is an acceptable `String`.
+                    if let Ok(line) = line {
+                        // Extract the feature names.
+                        let feature_names = extract_feature_names(&line);
+
+                        // If we found some features, add them!
+                        if let Some(f) = feature_names {
+                            for feature_name in f {
+                                if !self.excluded_features.contains(feature_name) {
+                                    let feature = Feature::UsedFeature {
+                                        name: feature_name.to_string(),
+                                        path: path_buf.clone(),
+                                        line_number: line_number as u64,
+                                    };
+                                    self.add_feature(feature)?
+                                }
                             }
                         }
                     }
