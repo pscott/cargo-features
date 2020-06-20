@@ -25,7 +25,7 @@ fn extract_features(line: &str) -> Option<Vec<&str>> {
                 None => unreachable!(), // capture has "feature" in it, so this can't be reached.
             })
             .collect(),
-    ) // scott
+    )
 }
 
 /// Struct that represents a feature.
@@ -124,6 +124,16 @@ impl CrateInfo {
     }
 }
 
+/// scott
+fn is_hidden(entry: &DirEntry) -> bool {
+    if entry.depth() == 0 {
+        return false;
+    }
+    entry
+        .file_name()
+        .to_str()
+        .map_or(false, |s| s.starts_with('.'))
+}
 /// A mapping from `PathBuf` to `CrateInfo`. Only crates which USE features in their code will be added.
 #[derive(Debug)]
 pub struct Package {
@@ -134,18 +144,6 @@ pub struct Package {
 
     // Set of features to be excluded.
     excluded_features: HashSet<String>,
-}
-
-/// scott
-/// SCOTT: add ignore paths
-fn is_hidden(entry: &DirEntry) -> bool {
-    if entry.depth() == 0 {
-        return false;
-    }
-    entry
-        .file_name()
-        .to_str()
-        .map_or(false, |s| s.starts_with("."))
 }
 
 impl Package {
@@ -179,31 +177,31 @@ impl Package {
         let walker = WalkDir::new(path).into_iter();
         for entry in walker.filter_entry(|e| !is_hidden(e)) {
             let entry = entry.map_err(|e| e.to_string())?;
-            let is_rust_file = entry
-                .path()
+            let entry_path = entry.path();
+            if self.excluded_paths.contains(entry_path) {
+                continue;
+            }
+            let is_rust_file = entry_path
                 .extension()
                 .map_or(false, |ext| ext.to_str().map_or(false, |s| s == "rs"));
             if is_rust_file {
                 let file = File::open(entry.path()).map_err(|e| e.to_string())?;
                 let lines = BufReader::new(file).lines();
-                let path = entry.path().to_path_buf();
+                let path = entry_path.to_path_buf();
                 for (line_number, line) in lines.enumerate() {
                     let line = line.map_err(|e| e.to_string())?;
                     let feature_names = extract_features(&line);
-                    match feature_names {
-                        Some(f) => {
-                            for feature_name in f {
-                                if !self.excluded_features.contains(feature_name) {
-                                    let feature = Feature::UsedFeature {
-                                        name: feature_name.to_string(),
-                                        path: path.clone(),
-                                        line_number: line_number as u64,
-                                    };
-                                    self.add_feature(feature)?
-                                }
+                    if let Some(f) = feature_names {
+                        for feature_name in f {
+                            if !self.excluded_features.contains(feature_name) {
+                                let feature = Feature::UsedFeature {
+                                    name: feature_name.to_string(),
+                                    path: path.clone(),
+                                    line_number: line_number as u64,
+                                };
+                                self.add_feature(feature)?
                             }
                         }
-                        None => {}
                     }
                 }
             }
