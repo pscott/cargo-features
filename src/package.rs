@@ -3,25 +3,29 @@ use regex::Regex;
 use std::cmp::{Eq, PartialEq};
 use std::collections::{HashMap, HashSet};
 use std::fs::read_to_string;
+use std::fs::File;
 use std::hash::{Hash, Hasher};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use walkdir::{DirEntry, WalkDir};
 
 /// Extracts the features from a given string and collects them into a Vector.
 /// e.g `"#[cfg(features = "foo", features= "bar")]"` -> `vec!["foo", "bar"]`
-fn extract_features(input: &str) -> Vec<&str> {
+fn extract_features(line: &str) -> Option<Vec<&str>> {
     // Using lazy_static here to avoid having to compile this regex everytime.
     lazy_static! {
         static ref RE: Regex =
             Regex::new(r#"feature\s*=\s*"(?P<feature>((\w*)-*)*)""#).expect("Invalid regex");
     }
-    RE.captures_iter(input)
-        // For each match, extract the "feature" group which we just captured.
-        .map(|c| match c.name("feature") {
-            Some(val) => val.as_str(),
-            None => unreachable!(), // capture has "feature" in it, so this can't be reached.
-        })
-        .collect()
+    Some(
+        RE.captures_iter(line)
+            // For each match, extract the "feature" group which we just captured.
+            .map(|c| match c.name("feature") {
+                Some(val) => val.as_str(),
+                None => unreachable!(), // capture has "feature" in it, so this can't be reached.
+            })
+            .collect(),
+    ) // scott
 }
 
 /// Struct that represents a feature.
@@ -120,33 +124,6 @@ impl CrateInfo {
     }
 }
 
-fn run_rg_command(path: &Path) -> Result<Vec<u8>, String> {
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| "Path contains non utf-8 characters")?;
-    let output = Command::new("rg")
-        .args(&[
-            "--json",       // We want the output to be in JSON format.
-            "-e",           // Specify that we wish to use a regex.
-            r"feature\s*=", // The actual regex.
-            "-trust",       // Specify we only wish to look for rust files.
-            path_str,
-        ])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if output.status.success() {
-        Ok(output.stdout)
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        // Rg exits with a code != 0 if it doesn't find any match. This means we have 0 hidden features, so we should return Ok.
-        if stderr.is_empty() {
-            Ok(output.stdout)
-        } else {
-            Err(stderr)
-        }
-    }
-}
-
 /// A mapping from `PathBuf` to `CrateInfo`. Only crates which USE features in their code will be added.
 #[derive(Debug)]
 pub struct Package {
@@ -157,6 +134,18 @@ pub struct Package {
 
     // Set of features to be excluded.
     excluded_features: HashSet<String>,
+}
+
+/// scott
+/// SCOTT: add ignore paths
+fn is_hidden(entry: &DirEntry) -> bool {
+    if entry.depth() == 0 {
+        return false;
+    }
+    entry
+        .file_name()
+        .to_str()
+        .map_or(false, |s| s.starts_with("."))
 }
 
 impl Package {
@@ -187,28 +176,34 @@ impl Package {
     /// Finds the used features by ripgrep'ing the path, looking for occurences of the pattern "feature = ".
     /// Then groups those occurences by crates.
     pub fn find_used_features(&mut self, path: &Path) -> Result<(), String> {
-        // Run the command and capture its output.
-        let output = run_rg_command(path)?;
-
-        let cow = String::from_utf8_lossy(&output);
-        // Output is a bunch of json separated by \n, so we split them to iterate over them.
-        let jsons = cow.split('\n');
-
-        for line in jsons {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-                // Keep only the "match" jsons.
-                if json
-                    .get("type")
-                    .ok_or_else(|| "JSON object should have a type field".to_string())?
-                    == "match"
-                {
-                    // Find the features that are in the "#[cfg(...)]" declaration
-                    let features = self.cfg_features(&json)?;
-                    for feature in features {
-                        // Make sure the feature does not appear amongst the excluded_features.
-                        if !self.excluded_features.contains(feature.name()) {
-                            self.add_feature(feature)?
+        let walker = WalkDir::new(path).into_iter();
+        for entry in walker.filter_entry(|e| !is_hidden(e)) {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let is_rust_file = entry
+                .path()
+                .extension()
+                .map_or(false, |ext| ext.to_str().map_or(false, |s| s == "rs"));
+            if is_rust_file {
+                let file = File::open(entry.path()).map_err(|e| e.to_string())?;
+                let lines = BufReader::new(file).lines();
+                let path = entry.path().to_path_buf();
+                for (line_number, line) in lines.enumerate() {
+                    let line = line.map_err(|e| e.to_string())?;
+                    let feature_names = extract_features(&line);
+                    match feature_names {
+                        Some(f) => {
+                            for feature_name in f {
+                                if !self.excluded_features.contains(feature_name) {
+                                    let feature = Feature::UsedFeature {
+                                        name: feature_name.to_string(),
+                                        path: path.clone(),
+                                        line_number: line_number as u64,
+                                    };
+                                    self.add_feature(feature)?
+                                }
+                            }
                         }
+                        None => {}
                     }
                 }
             }
@@ -243,44 +238,6 @@ impl Package {
             self.mapping.insert(cargo_path, crate_info);
         }
         Ok(())
-    }
-
-    /// Extracts the features from a JSON object.
-    fn cfg_features(&self, json: &serde_json::Value) -> Result<Vec<Feature>, &'static str> {
-        let path_str = json["data"]["path"]["text"]
-            .as_str()
-            .ok_or_else(|| "Value should be a string")?;
-        let path = PathBuf::from(path_str);
-        // Make sure that the path does not appear amongst the excluded paths.
-        if path
-            .ancestors()
-            .any(|ancestor| self.excluded_paths.contains(ancestor))
-        {
-            return Ok(Vec::new());
-        }
-
-        // Extract the line number.
-        let line_number = json["data"]["line_number"]
-            .as_u64()
-            .ok_or_else(|| "error converting the line number")?;
-
-        // Extract the line in the code that contains the features (probably a #[cfg(...)]).
-        let cfg_declaration = json["data"]["lines"]["text"]
-            .as_str()
-            .ok_or_else(|| "Value should be a string")?;
-
-        // Get a Vector with the names of the different features declared in this line.
-        let feature_names = extract_features(cfg_declaration);
-
-        // From the vecotr of feature names, create a vector of `Feature::UsedFeature`s.
-        Ok(feature_names
-            .iter()
-            .map(|&feature_name| Feature::UsedFeature {
-                name: feature_name.to_string(),
-                path: path.clone(),
-                line_number,
-            })
-            .collect())
     }
 
     /// Finds the exposed features of every Cargo.toml file in the mapping.
