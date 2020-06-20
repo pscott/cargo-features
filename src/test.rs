@@ -124,4 +124,18 @@ mod tests {
         dbg!(&res);
         assert!(res.is_err());
     }
+
+    #[test]
+    fn hidden_fodlers() {
+        let excluded_paths = HashSet::new();
+        let excluded_features = HashSet::new();
+        let mut p = Package::new(excluded_paths, excluded_features);
+        let path = PathBuf::from("test_files");
+        let res = find_and_check(&mut p, &path);
+        let features = p.hidden_features();
+        assert!(!features.is_empty());
+        assert!(!features.contains("error1"));
+        assert!(!features.contains("error2"));
+        assert!(res.is_err());
+    }
 }
