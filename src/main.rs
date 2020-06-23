@@ -12,39 +12,27 @@ struct Opt {
     path: PathBuf,
 
     #[structopt(long)]
-    exposed_features: bool,
-
-    #[structopt(short, long)]
-    used_features: bool,
+    ignored_paths: Vec<String>,
 
     #[structopt(long)]
-    excluded_paths: Vec<String>,
-
-    #[structopt(long)]
-    excluded_features: Vec<String>,
+    ignores_features: Vec<String>,
 }
 
 fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
-    let excluded_paths = opt
-        .excluded_paths
+    let ignored_paths = opt
+        .ignored_paths
         .iter()
         .cloned()
         .map(PathBuf::from)
         .collect();
 
-    let excluded_features = opt.excluded_features.iter().cloned().collect();
+    let ignores_features = opt.ignores_features.iter().cloned().collect();
 
-    let mut package = Package::new(excluded_paths, excluded_features);
+    let mut package = Package::new(ignored_paths, ignores_features);
     package.find_used_features(&opt.path)?;
     package.find_exposed_features();
     package.find_hidden_features();
-    if opt.exposed_features {
-        package.display_exposed_features();
-    }
-    if opt.used_features {
-        package.display_used_features();
-    }
     package.check_hidden_features()
 }

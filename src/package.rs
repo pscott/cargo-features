@@ -139,19 +139,19 @@ fn is_hidden(entry: &DirEntry) -> bool {
 pub struct Package {
     mapping: HashMap<PathBuf, CrateInfo>,
 
-    // Set of paths that are excluded.
-    excluded_paths: HashSet<PathBuf>,
+    // Set of paths to be ignored.
+    ignores_paths: HashSet<PathBuf>,
 
-    // Set of features to be excluded.
-    excluded_features: HashSet<String>,
+    // Set of features to be ignored.
+    ignores_features: HashSet<String>,
 }
 
 impl Package {
-    pub fn new(excluded_paths: HashSet<PathBuf>, excluded_features: HashSet<String>) -> Self {
+    pub fn new(ignores_paths: HashSet<PathBuf>, ignores_features: HashSet<String>) -> Self {
         Self {
             mapping: HashMap::new(),
-            excluded_paths,
-            excluded_features,
+            ignores_paths,
+            ignores_features,
         }
     }
 
@@ -178,8 +178,8 @@ impl Package {
         for entry in walker.filter_entry(|e| !is_hidden(e)) {
             let entry = entry.map_err(|e| e.to_string())?;
             let entry_path = entry.path();
-            // If the entry path figures amongst the list of excluded paths, then skip it.
-            if self.excluded_paths.contains(entry_path) {
+            // If the entry path figures amongst the list of ignored paths, then skip it.
+            if self.ignores_paths.contains(entry_path) {
                 continue;
             }
             let is_rust_file = entry_path
@@ -200,7 +200,7 @@ impl Package {
                         // If we found some features, add them!
                         if let Some(f) = feature_names {
                             for feature_name in f {
-                                if !self.excluded_features.contains(feature_name) {
+                                if !self.ignores_features.contains(feature_name) {
                                     let feature = Feature::UsedFeature {
                                         name: feature_name.to_string(),
                                         path: path_buf.clone(),
@@ -262,8 +262,8 @@ impl Package {
             if let Some(table) = table {
                 for (feature_name, _) in table.iter() {
                     let name = feature_name.to_string();
-                    // Make sure the feature is not one of the excluded features.
-                    if !self.excluded_features.contains(&name) {
+                    // Make sure the feature is not one of the ignored features.
+                    if !self.ignores_features.contains(&name) {
                         exposed.insert(Feature::ExposedFeature { name });
                     };
                 }
@@ -310,37 +310,7 @@ impl Package {
         }
     }
 
-    // todo pretty print
-    pub fn display_exposed_features(&self) {
-        for cargo in self.mapping.values() {
-            if !cargo.exposed_features.is_empty() {
-                println!("path: {:?}", cargo.path);
-            }
-            for feature in &cargo.exposed_features {
-                println!("\t{}", feature.name());
-            }
-        }
-    }
-
-    // todo pretty print
-    pub fn display_used_features(&self) {
-        for cargo in self.mapping.values() {
-            if !cargo.used_features.is_empty() {
-                println!("path: {:?}", cargo.path);
-            }
-            for feature in &cargo.used_features {
-                println!(
-                    "\t{}\t{}",
-                    feature.name(),
-                    feature
-                        .clickable_path()
-                        .unwrap_or_else(|| String::from(feature.name()))
-                );
-            }
-        }
-    }
-
-    #[allow(dead_code)]
+    #[cfg(test)]
     /// Returns a set of all the hidden features names.
     /// Used for testing purposes.
     pub fn hidden_features(&self) -> HashSet<&str> {
