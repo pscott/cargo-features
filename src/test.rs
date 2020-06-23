@@ -7,14 +7,7 @@ mod tests {
     const ONE_LINE_FEATURES_FILE: &str = "test_files/one_line_features.rs";
     use crate::package::Package;
     use std::collections::HashSet;
-    use std::path::{Path, PathBuf};
-
-    fn find_and_check(package: &mut Package, path: &Path) -> Result<(), String> {
-        package.find_used_features(path)?;
-        package.find_exposed_features();
-        package.find_hidden_features();
-        package.check_hidden_features()
-    }
+    use std::path::PathBuf;
 
     #[test]
     fn empty_features() {
@@ -32,7 +25,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(NO_FEATURES_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         dbg!(&res);
         assert!(res.is_ok());
     }
@@ -43,7 +36,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::new();
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         dbg!(&res);
         assert!(res.is_err());
     }
@@ -54,7 +47,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         let features = p.hidden_features();
         assert!(features.contains("hidden-feature"));
         dbg!(&res);
@@ -68,7 +61,7 @@ mod tests {
         excluded_features.insert(String::from("hidden-feature"));
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         let features = p.hidden_features();
         assert!(features.is_empty());
         dbg!(&res);
@@ -82,7 +75,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_FEATURE_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         let features = p.hidden_features();
         assert!(features.is_empty());
         dbg!(&res);
@@ -95,7 +88,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(FOUR_FEATURES_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         let mut features = p.hidden_features();
         dbg!(&features);
         assert!(features.remove("hidden-feature-1"));
@@ -113,7 +106,7 @@ mod tests {
         let excluded_features = HashSet::new();
         let mut p = Package::new(excluded_paths, excluded_features);
         let path = PathBuf::from(ONE_LINE_FEATURES_FILE);
-        let res = find_and_check(&mut p, &path);
+        let res = p.find_and_check(&path);
         let mut features = p.hidden_features();
         dbg!(&features);
         assert!(features.remove("get-your"));
