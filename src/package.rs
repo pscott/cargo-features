@@ -140,18 +140,18 @@ pub struct Package {
     mapping: HashMap<PathBuf, CrateInfo>,
 
     // Set of paths to be ignored.
-    ignores_paths: HashSet<PathBuf>,
+    ignored_paths: HashSet<PathBuf>,
 
     // Set of features to be ignored.
-    ignores_features: HashSet<String>,
+    ignored_features: HashSet<String>,
 }
 
 impl Package {
-    pub fn new(ignores_paths: HashSet<PathBuf>, ignores_features: HashSet<String>) -> Self {
+    pub fn new(ignored_paths: HashSet<PathBuf>, ignored_features: HashSet<String>) -> Self {
         Self {
             mapping: HashMap::new(),
-            ignores_paths,
-            ignores_features,
+            ignored_paths,
+            ignored_features,
         }
     }
 
@@ -179,7 +179,7 @@ impl Package {
             let entry = entry.map_err(|e| e.to_string())?;
             let entry_path = entry.path();
             // If the entry path figures amongst the list of ignored paths, then skip it.
-            if self.ignores_paths.contains(entry_path) {
+            if self.ignored_paths.contains(entry_path) {
                 continue;
             }
             let is_rust_file = entry_path
@@ -200,7 +200,7 @@ impl Package {
                         // If we found some features, add them!
                         if let Some(f) = feature_names {
                             for feature_name in f {
-                                if !self.ignores_features.contains(feature_name) {
+                                if !self.ignored_features.contains(feature_name) {
                                     let feature = Feature::UsedFeature {
                                         name: feature_name.to_string(),
                                         path: path_buf.clone(),
@@ -263,7 +263,7 @@ impl Package {
                 for (feature_name, _) in table.iter() {
                     let name = feature_name.to_string();
                     // Make sure the feature is not one of the ignored features.
-                    if !self.ignores_features.contains(&name) {
+                    if !self.ignored_features.contains(&name) {
                         exposed.insert(Feature::ExposedFeature { name });
                     };
                 }
