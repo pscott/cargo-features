@@ -28,9 +28,9 @@ fn main() -> Result<(), String> {
         .map(PathBuf::from)
         .collect();
 
-    let ignores_features = opt.ignores_features.iter().cloned().collect();
+    let ignored_features = opt.ignores_features.iter().cloned().collect();
 
-    let mut package = Package::new(ignored_paths, ignores_features);
+    let mut package = Package::new(ignored_paths, ignored_features);
     package.find_used_features(&opt.path)?;
     package.find_exposed_features();
     package.find_hidden_features();
