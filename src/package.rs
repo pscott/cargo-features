@@ -175,7 +175,8 @@ impl Package {
     /// Then groups those occurences by crates.
     pub fn find_used_features(&mut self, path: &Path) -> Result<(), String> {
         let walker = WalkDir::new(path).into_iter();
-        for entry in walker.filter_entry(|e| !is_hidden(e)) {
+        let mut features = Vec::new();
+        for entry in walker.filter_entry(|e| !is_hidden(e) && !self.ignored_paths.contains(e.path())) {
             let entry = entry.map_err(|e| e.to_string())?;
             let entry_path = entry.path();
             // If the entry path figures amongst the list of ignored paths, then skip it.
@@ -206,13 +207,16 @@ impl Package {
                                         path: path_buf.clone(),
                                         line_number: line_number as u64,
                                     };
-                                    self.add_feature(feature)?
+                                    features.push(feature)
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+        for feature in features.into_iter() {
+            self.add_feature(feature)?
         }
         Ok(())
     }

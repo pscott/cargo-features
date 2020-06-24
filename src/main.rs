@@ -2,6 +2,7 @@ mod package;
 mod test;
 
 use package::Package;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -21,12 +22,15 @@ struct Opt {
 fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
-    let ignored_paths = opt
+    let mut ignored_paths: HashSet<PathBuf> = opt
         .ignored_paths
         .iter()
         .cloned()
         .map(PathBuf::from)
         .collect();
+
+    // Ignore the "target" directoy.
+    ignored_paths.insert(opt.path.join("target"));
 
     let ignored_features = opt.ignored_features.iter().cloned().collect();
 
