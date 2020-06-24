@@ -75,7 +75,7 @@ impl Feature {
             Self::UsedFeature {
                 path, line_number, ..
             } => {
-                let clickable_path = format!("{:?}:{}", path, line_number);
+                let clickable_path = format!("{}:{}", path.display(), line_number);
                 Some(clickable_path)
             }
             Self::ExposedFeature { .. } => None,
