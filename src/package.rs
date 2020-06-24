@@ -217,7 +217,7 @@ impl Package {
                 }
             }
         }
-        for feature in features.into_iter() {
+        for feature in features {
             self.add_feature(feature)?
         }
         Ok(())
