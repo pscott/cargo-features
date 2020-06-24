@@ -176,7 +176,9 @@ impl Package {
     pub fn find_used_features(&mut self, path: &Path) -> Result<(), String> {
         let walker = WalkDir::new(path).into_iter();
         let mut features = Vec::new();
-        for entry in walker.filter_entry(|e| !is_hidden(e) && !self.ignored_paths.contains(e.path())) {
+        for entry in
+            walker.filter_entry(|e| !is_hidden(e) && !self.ignored_paths.contains(e.path()))
+        {
             let entry = entry.map_err(|e| e.to_string())?;
             let entry_path = entry.path();
             // If the entry path figures amongst the list of ignored paths, then skip it.
